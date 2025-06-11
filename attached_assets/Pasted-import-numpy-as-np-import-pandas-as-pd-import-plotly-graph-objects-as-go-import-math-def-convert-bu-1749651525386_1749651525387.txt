@@ -1,0 +1,694 @@
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import math
+
+def convert_bulk_density_to_metric(value):
+    """Convert bulk density from lb/ft³ to kg/m³."""
+    return value * 16.0185  # 1 lb/ft³ = 16.0185 kg/m³
+
+def convert_bulk_density_to_imperial(value):
+    """Convert bulk density from kg/m³ to lb/ft³."""
+    return value / 16.0185  # 1 kg/m³ = 0.062428 lb/ft³
+
+def calculate_gravity_md_flow_rate(aperture_size_mm, bulk_density, use_imperial=False):
+    """Calculate gravity MD flow rate based on aperture size and bulk density."""
+    # Convert bulk density to lb/ft³ if it's in kg/m³
+    if not use_imperial:
+        bulk_density = convert_bulk_density_to_imperial(bulk_density)
+
+    aperture_flow_map = {
+        30: 35.32,
+        50: 98.88,
+        70: 194.23,
+        90: 254.27,
+        120: 395.53,
+        150: 568.57,
+        200: 889.94,
+        250: 1528.11,
+        300: 2468.52,
+        350: 3556.22,
+        400: 6921.74
+    }
+
+    if aperture_size_mm in aperture_flow_map:
+        ft3_hr = aperture_flow_map[aperture_size_mm]
+        lb_hr = ft3_hr * bulk_density
+
+        if not use_imperial:
+            # Convert results to metric (m³/hr and kg/hr)
+            ft3_hr = ft3_hr * 0.0283168  # Convert ft³/hr to m³/hr
+            lb_hr = lb_hr * 0.453592     # Convert lb/hr to kg/hr
+
+        return ft3_hr, lb_hr
+    return None, None
+
+def validate_gravity_inputs(aperture_size, bulk_density, use_imperial=False):
+    """Validate gravity flow calculator inputs."""
+    errors = []
+    valid_apertures = [30, 50, 70, 90, 120, 150, 200, 250, 300, 350, 400]
+
+    if aperture_size not in valid_apertures:
+        errors.append(f"Aperture size must be one of: {', '.join(map(str, valid_apertures))}")
+
+    if bulk_density <= 0:
+        errors.append("Bulk density must be greater than 0")
+
+    if use_imperial:
+        if bulk_density > 200:
+            errors.append("Bulk density seems too high (>200 lb/ft³)")
+    else:
+        if bulk_density > 3203.7:  # 200 lb/ft³ converted to kg/m³
+            errors.append("Bulk density seems too high (>3203.7 kg/m³)")
+
+    return errors
+
+def calculate_column_velocity(molder_shot_size, molder_cycle_time, material_density, area_inside_tube):
+    """Calculate column velocity and related flow rates."""
+    # Calculate Flow Rate (Lbs/Hour)
+    flow_rate_lb_hr = (molder_shot_size / molder_cycle_time) * 3600
+
+    # Calculate Flow Rate (Cu. Ft./Hour)
+    flow_rate_ft3_hr = flow_rate_lb_hr / material_density
+
+    # Calculate Flow Rate (Cu. In./Sec.)
+    flow_rate_in3_sec = flow_rate_ft3_hr * 1728 / 3600
+
+    # Calculate Material Velocity in Column (In./Sec.)
+    material_velocity = flow_rate_in3_sec / area_inside_tube
+
+    return {
+        'flow_rate_lb_hr': flow_rate_lb_hr,
+        'flow_rate_ft3_hr': flow_rate_ft3_hr,
+        'flow_rate_in3_sec': flow_rate_in3_sec,
+        'material_velocity': material_velocity
+    }
+
+def create_flow_comparison_chart(aperture_size, bulk_density):
+    """Create a bar chart comparing flow rates for different aperture sizes."""
+    aperture_sizes = [30, 50, 70, 90, 120, 150, 200, 250, 300, 350, 400]
+    flow_rates = []
+
+    for size in aperture_sizes:
+        ft3_hr, _ = calculate_gravity_md_flow_rate(size, bulk_density)
+        flow_rates.append(ft3_hr)
+
+    fig = go.Figure()
+
+    # Add bar chart
+    fig.add_trace(go.Bar(
+        x=aperture_sizes,
+        y=flow_rates,
+        name='Flow Rate',
+        marker_color='#1f77b4'
+    ))
+
+    # Highlight selected aperture size
+    if aperture_size in aperture_sizes:
+        selected_flow = flow_rates[aperture_sizes.index(aperture_size)]
+        fig.add_trace(go.Scatter(
+            x=[aperture_size],
+            y=[selected_flow],
+            mode='markers',
+            name='Selected',
+            marker=dict(color='red', size=12)
+        ))
+
+    fig.update_layout(
+        title='Flow Rate Comparison by Aperture Size',
+        xaxis_title='Aperture Size (mm)',
+        yaxis_title='Flow Rate (ft³/hr)',
+        showlegend=True,
+        height=400,
+        margin=dict(l=50, r=50, t=50, b=50)
+    )
+
+    return fig
+
+def validate_gravity_inputs(aperture_size, bulk_density, use_imperial=False):
+    """Validate gravity flow calculator inputs."""
+    errors = []
+    valid_apertures = [30, 50, 70, 90, 120, 150, 200, 250, 300, 350, 400]
+
+    if aperture_size not in valid_apertures:
+        errors.append(f"Aperture size must be one of: {', '.join(map(str, valid_apertures))}")
+
+    if bulk_density <= 0:
+        errors.append("Bulk density must be greater than 0")
+
+    if use_imperial:
+        if bulk_density > 200:
+            errors.append("Bulk density seems too high (>200 lb/ft³)")
+    else:
+        if bulk_density > 3203.7:  # 200 lb/ft³ converted to kg/m³
+            errors.append("Bulk density seems too high (>3203.7 kg/m³)")
+
+    return errors
+
+def validate_column_inputs(shot_size, cycle_time, density, area):
+    """Validate column velocity calculator inputs."""
+    errors = []
+
+    if shot_size <= 0:
+        errors.append("Shot size must be greater than 0")
+    if cycle_time <= 0:
+        errors.append("Cycle time must be greater than 0")
+    if density <= 0:
+        errors.append("Material density must be greater than 0")
+    if area <= 0:
+        errors.append("Area inside tube must be greater than 0")
+
+    return errors
+
+def get_spout_data():
+    """Return the spout data tables."""
+    round_spout_data = {
+        "Diameter (in)": [4, 5, 6, 8, 10, 12, 14, 16, 18, 20],
+        "Area (sq. in.)": [12.6, 19.6, 28.3, 50.3, 78.5, 113.0, 153.9, 201.0, 254.5, 314.2],
+        "Capacity at 50 PCF (CFH)": [504, 784, 1132, 2012, 3140, 4520, 6156, 8040, 10180, 12568],
+        "Capacity at 35 PCF (CFH)": [360, 561, 809, 1439, 2245, 3232, 4402, 5749, 7279, 8986],
+    }
+
+    square_spout_data = {
+        "Size (in)": ["4x4", "5x5", "6x6", "8x8", "10x10", "12x12", "14x14", "16x16", "18x18", "20x20"],
+        "Area (sq. in.)": [16.0, 25.0, 36.0, 64.0, 100.0, 144.0, 196.0, 256.0, 324.0, 400.0],
+        "Capacity at 50 PCF (CFH)": [640, 1000, 1440, 2560, 4000, 5760, 7840, 10240, 12960, 16000],
+        "Capacity at 35 PCF (CFH)": [458, 715, 1030, 1830, 2860, 4118, 5606, 7322, 9266, 11440],
+    }
+
+    return round_spout_data, square_spout_data
+
+def convert_capacity_to_cfh(capacity_value, unit, bulk_density):
+    """Convert capacity from tons/hr or lbs/hr to cubic feet per hour."""
+    if unit == "tons/hr":
+        lbs_per_hour = capacity_value * 2000
+    else:  # lbs/hr
+        lbs_per_hour = capacity_value
+
+    return lbs_per_hour / bulk_density
+
+def calculate_spout_requirements(bulk_density, capacity_value, capacity_unit):
+    """Calculate spout requirements based on inputs."""
+    # Convert to cubic feet per hour
+    cfh = convert_capacity_to_cfh(capacity_value, capacity_unit, bulk_density)
+
+    round_data, square_data = get_spout_data()
+
+    # Calculate density factor
+    density_factor = bulk_density / 50
+
+    # Find suitable spouts
+    results = {
+        "cfh": cfh,
+        "round": None,
+        "square": None
+    }
+
+    # Check round spouts
+    for i, capacity in enumerate(round_data["Capacity at 50 PCF (CFH)"]):
+        if capacity * density_factor >= cfh:
+            results["round"] = {
+                "diameter": round_data["Diameter (in)"][i],
+                "area": round_data["Area (sq. in.)"][i],
+                "max_cfh": capacity * density_factor
+            }
+            break
+
+    # Check square spouts
+    for i, capacity in enumerate(square_data["Capacity at 50 PCF (CFH)"]):
+        if capacity * density_factor >= cfh:
+            results["square"] = {
+                "size": square_data["Size (in)"][i],
+                "area": square_data["Area (sq. in.)"][i],
+                "max_cfh": capacity * density_factor
+            }
+            break
+
+    return results
+
+def validate_spout_inputs(bulk_density, capacity_value):
+    """Validate spout calculator inputs."""
+    errors = []
+
+    if bulk_density <= 0:
+        errors.append("Bulk density must be greater than 0")
+    elif bulk_density > 200:
+        errors.append("Bulk density seems too high (>200 PCF)")
+
+    if capacity_value <= 0:
+        errors.append("Capacity must be greater than 0")
+    elif capacity_value > 10000:  # Adjusted for tons/hr max
+        errors.append("Capacity seems too high")
+
+    return errors
+
+def create_spout_comparison_chart(bulk_density, capacity_cfh):
+    """Create a bar chart comparing both round and square spout capacities."""
+    round_data, square_data = get_spout_data()
+
+    density_factor = bulk_density / 50
+
+    # Calculate capacities for both types
+    round_capacities = [cap * density_factor for cap in round_data["Capacity at 50 PCF (CFH)"]]
+    square_capacities = [cap * density_factor for cap in square_data["Capacity at 50 PCF (CFH)"]]
+
+    # Create figure
+    fig = go.Figure()
+
+    # Add round spout bars
+    fig.add_trace(go.Bar(
+        name='Round Spout',
+        x=[f"{d}\" Dia" for d in round_data["Diameter (in)"]],
+        y=round_capacities,
+        marker_color='#1f77b4'
+    ))
+
+    # Add square spout bars
+    fig.add_trace(go.Bar(
+        name='Square Spout',
+        x=[size for size in square_data["Size (in)"]],
+        y=square_capacities,
+        marker_color='#ff7f0e'
+    ))
+
+    # Add target capacity line
+    fig.add_trace(go.Scatter(
+        name='Required Capacity',
+        x=[f"{d}\" Dia" for d in round_data["Diameter (in)"]] + [size for size in square_data["Size (in)"]],
+        y=[capacity_cfh] * (len(round_data["Diameter (in)"]) + len(square_data["Size (in)"])),
+        line=dict(color='red', dash='dash')
+    ))
+
+    fig.update_layout(
+        title='Spout Capacity Comparison',
+        xaxis_title='Spout Size',
+        yaxis_title='Capacity (CFH)',
+        barmode='group',
+        showlegend=True,
+        height=400,
+        margin=dict(l=50, r=50, t=50, b=50)
+    )
+
+    return fig
+
+def calculate_belt_horsepower(belt_speed, part_feed_rate, belt_width, incline_angle):
+    """Calculate belt horsepower based on input parameters."""
+    # Coefficient lookup table
+    cv_table = {
+        90: 0.75,
+        75: 0.6,
+        60: 0.45,
+        45: 0.3,
+        30: 0.2
+    }
+
+    # Get closest angle coefficient
+    closest_angle = min(cv_table.keys(), key=lambda x: abs(x - incline_angle))
+    cvf = cv_table.get(closest_angle, 0.45)
+
+    # Distance, Parts/ft, and Force Calculation
+    sections_data = {
+        "Type": ["Incline", "Curve", "Horiz"],
+        "Distance": [7.82, 1.5, 7.8],
+        "# Parts/ft": [1, 1, 14],
+        "# per part": [20, 20, 20]
+    }
+
+    # Calculate forces
+    total_force = sum(p * n for p, n in zip(sections_data["# Parts/ft"], sections_data["# per part"]))
+    calculated_force = total_force * cvf
+
+    # Tension calculations
+    T_E = calculated_force
+    T_2 = T_E * 0.45
+    T_1 = T_E + T_2
+
+    # Horsepower calculation
+    horsepower = (T_E * belt_speed) / 28000
+
+    return {
+        "total_force": total_force,
+        "calculated_force": calculated_force,
+        "T_E": T_E,
+        "T_2": T_2,
+        "T_1": T_1,
+        "horsepower": horsepower
+    }
+
+def validate_belt_inputs(belt_speed, part_feed_rate, belt_width, incline_angle):
+    """Validate belt horsepower calculator inputs."""
+    errors = []
+
+    if belt_speed <= 0:
+        errors.append("Belt speed must be greater than 0")
+    elif belt_speed > 1000:
+        errors.append("Belt speed seems too high (>1000 FPM)")
+
+    if part_feed_rate <= 0:
+        errors.append("Part feed rate must be greater than 0")
+
+    if belt_width <= 0:
+        errors.append("Belt width must be greater than 0")
+    elif belt_width > 100:
+        errors.append("Belt width seems too high (>100 inches)")
+
+    if incline_angle < 0 or incline_angle > 90:
+        errors.append("Incline angle must be between 0 and 90 degrees")
+
+    return errors
+
+def calculate_drag_slide(x_val, y_val):
+    """Calculate drag slide dimensions with and without magnet."""
+    # With magnet calculations
+    A_with = 82.0
+    B_with = math.sqrt(x_val**2 + y_val**2) + 28.0
+    OAL_with = math.sqrt(x_val**2 + y_val**2) + 101.44
+
+    # Without magnet calculations
+    A_without = 82.0
+    B_without = math.sqrt(x_val**2 + y_val**2) + 13.0
+    OAL_without = math.sqrt(x_val**2 + y_val**2) + 80.34
+
+    return {
+        "with_magnet": {
+            "A": A_with,
+            "B": B_with,
+            "OAL": OAL_with
+        },
+        "without_magnet": {
+            "A": A_without,
+            "B": B_without,
+            "OAL": OAL_without
+        }
+    }
+
+def validate_drag_slide_inputs(x_val, y_val):
+    """Validate drag slide calculator inputs."""
+    errors = []
+
+    if x_val <= 0:
+        errors.append("X value must be greater than 0")
+    elif x_val > 1000:
+        errors.append("X value seems too high (>1000 inches)")
+
+    if y_val <= 0:
+        errors.append("Y value must be greater than 0")
+    elif y_val > 1000:
+        errors.append("Y value seems too high (>1000 inches)")
+
+    return errors
+
+def calculate_metal_detector_coils(overall_belt_width, side_guard_height, max_product_height):
+    """Calculate metal detector coil specifications."""
+    # Convert inches to mm for sensing width calculations
+    sensing_width_s = max(550, overall_belt_width * 25.4)
+    sensing_width_d = max(600, overall_belt_width * 25.4)
+    sensing_width_c = max(700, overall_belt_width * 25.4)
+
+    # Calculate aperture height for D and C coils
+    aperture_height = max(250, (side_guard_height + max_product_height) * 25.4)
+
+    return {
+        "s_coil": {
+            "sensing_width": sensing_width_s,
+            "recommended": f"MD 05 05 {sensing_width_s}"
+        },
+        "d_coil": {
+            "sensing_width": sensing_width_d,
+            "aperture_height": aperture_height,
+            "recommended": f"MD D 05 {sensing_width_d} X {aperture_height}"
+        },
+        "c_coil": {
+            "sensing_width": sensing_width_c,
+            "aperture_height": aperture_height,
+            "recommended": f"MD C 05 {sensing_width_c} X {aperture_height}"
+        }
+    }
+
+def validate_metal_detector_inputs(overall_belt_width, hockey_stick_belt, effective_belt_width, 
+                                 side_guard_height, max_product_height):
+    """Validate metal detector calculator inputs."""
+    errors = []
+
+    if overall_belt_width <= 0:
+        errors.append("Overall belt width must be greater than 0")
+    elif overall_belt_width > 100:
+        errors.append("Overall belt width seems too high (>100 inches)")
+
+    if effective_belt_width <= 0:
+        errors.append("Effective belt width must be greater than 0")
+    elif effective_belt_width > overall_belt_width:
+        errors.append("Effective belt width cannot be greater than overall belt width")
+
+    if side_guard_height < 0:
+        errors.append("Side guard height cannot be negative")
+    elif side_guard_height > 24:
+        errors.append("Side guard height seems too high (>24 inches)")
+
+    if max_product_height < 0:
+        errors.append("Maximum product height cannot be negative")
+    elif max_product_height > 24:
+        errors.append("Maximum product height seems too high (>24 inches)")
+
+    return errors
+
+def calculate_belt_length(nominal_length, belt_length_fixed, extrusion_length, cut_length, ext_qty, optimize=False):
+    """Calculate belt length and related measurements."""
+    # Calculations
+    assembled_length = nominal_length - extrusion_length
+    total_extrusion_cut = cut_length * ext_qty
+
+    results = {
+        "assembled_length": assembled_length,
+        "total_extrusion_cut": total_extrusion_cut,
+    }
+
+    if optimize:
+        optimized_cut = assembled_length / ext_qty
+        results["optimized_cut"] = optimized_cut
+
+    return results
+
+def validate_belt_length_inputs(nominal_length, belt_length_fixed, extrusion_length, cut_length, ext_qty):
+    """Validate belt length calculator inputs."""
+    errors = []
+
+    if nominal_length <= 0:
+        errors.append("Nominal length must be greater than 0")
+    elif nominal_length > 10000:  # Assuming 10000 inches as a reasonable maximum
+        errors.append("Nominal length seems too high (>10000 inches)")
+
+    if belt_length_fixed <= 0:
+        errors.append("Fixed belt length must be greater than 0")
+    elif belt_length_fixed > nominal_length:
+        errors.append("Fixed belt length cannot be greater than nominal length")
+
+    if extrusion_length <= 0:
+        errors.append("Extrusion length must be greater than 0")
+    elif extrusion_length > nominal_length:
+        errors.append("Extrusion length cannot be greater than nominal length")
+
+    if cut_length <= 0:
+        errors.append("Cut length must be greater than 0")
+    elif cut_length > nominal_length:
+        errors.append("Cut length cannot be greater than nominal length")
+
+    if ext_qty <= 0:
+        errors.append("Extrusion quantity must be greater than 0")
+    elif ext_qty > 100:  # Assuming 100 as a reasonable maximum
+        errors.append("Extrusion quantity seems too high (>100)")
+
+    return errors
+
+def convert_to_metric(value, unit_type):
+    """Convert imperial measurements to metric."""
+    conversions = {
+        'length': lambda x: x * 25.4,  # inches to mm
+        'mass': lambda x: x * 0.453592,  # lbs to kg
+        'force': lambda x: x * 4.44822,  # lbf to N
+        'volume': lambda x: x * 0.0283168 #ft3 to m3
+    }
+    return conversions[unit_type](value)
+
+def convert_to_imperial(value, unit_type):
+    """Convert metric measurements to imperial."""
+    conversions = {
+        'length': lambda x: x / 25.4,  # mm to inches
+        'mass': lambda x: x / 0.453592,  # kg to lbs
+        'force': lambda x: x / 4.44822,  # N to lbf
+        'volume': lambda x: x / 0.0283168 #m3 to ft3
+    }
+    return conversions[unit_type](value)
+
+def calculate_belt_load(b0, beta, dA, L, m_bl, m_mp, tu, c2, alpha, use_imperial=False):
+    """Calculate belt load parameters with unit conversion support."""
+    # Convert imperial inputs to metric if needed
+    if use_imperial:
+        b0 = convert_to_metric(b0, 'length')  # Convert inches to mm
+        dA = convert_to_metric(dA, 'length')  # Convert inches to mm
+        L = convert_to_metric(L, 'length')    # Convert inches to mm
+        m_bl = convert_to_metric(m_bl, 'length')  # Convert inches to mm
+        m_mp = convert_to_metric(m_mp, 'mass')    # Convert lbs to kg
+        tu = convert_to_metric(tu, 'mass')        # Convert lbs to kg
+        c2 = c2 * 175.127  # Convert PIW to N/mm
+
+    # Constants
+    c3 = 10  # Constant for dry lagged drum
+    coeff_friction = 0.33  # Given coefficient of friction
+
+    # Belt Pull Calculations
+    FU1 = (c2 * b0) / 1  # FU1 formula
+    FU2 = (dA * b0 * beta) / (180 * c3)  # FU2 formula
+    FU = min(FU1, FU2)  # Lesser of FU1 or FU2
+
+    # Maximum Conveyor Loading Calculation
+    W = FU * ((coeff_friction * m_mp * 0.5) / (coeff_friction + alpha))
+
+    # Convert results to imperial if needed
+    if use_imperial:
+        FU1 = convert_to_imperial(FU1, 'force')
+        FU2 = convert_to_imperial(FU2, 'force')
+        FU = convert_to_imperial(FU, 'force')
+        W = convert_to_imperial(W, 'force')
+
+    return {
+        'FU1': FU1,
+        'FU2': FU2,
+        'FU': FU,
+        'W': W
+    }
+
+def validate_belt_load_inputs(b0, beta, dA, L, m_bl, m_mp, tu, c2, alpha, use_imperial=False):
+    """Validate belt load calculator inputs with unit awareness."""
+    errors = []
+
+    # Adjust validation ranges based on units
+    if use_imperial:
+        max_width = 196.85  # 5000mm in inches
+        max_diameter = 78.74  # 2000mm in inches
+
+        if b0 <= 0:
+            errors.append("Belt width must be greater than 0")
+        elif b0 > max_width:
+            errors.append(f"Belt width seems too high (>{max_width:.2f} inches)")
+
+        if dA <= 0:
+            errors.append("Drive drum diameter must be greater than 0")
+        elif dA > max_diameter:
+            errors.append(f"Drive drum diameter seems too high (>{max_diameter:.2f} inches)")
+    else:
+        if b0 <= 0:
+            errors.append("Belt width must be greater than 0")
+        elif b0 > 5000:
+            errors.append("Belt width seems too high (>5000 mm)")
+
+        if dA <= 0:
+            errors.append("Drive drum diameter must be greater than 0")
+        elif dA > 2000:
+            errors.append("Drive drum diameter seems too high (>2000 mm)")
+
+    if beta <= 0 or beta > 360:
+        errors.append("Arc of drive drum contact must be between 0 and 360 degrees")
+
+    if L <= 0:
+        errors.append("Conveyor length must be greater than 0")
+
+    if m_bl <= 0:
+        errors.append("Belt length must be greater than 0")
+
+    if m_mp <= 0:
+        errors.append("Mass of belt must be greater than 0")
+
+    if tu <= 0:
+        errors.append("Available takeup must be greater than 0")
+
+    if c2 <= 0:
+        errors.append("Belt rating must be greater than 0")
+
+    if alpha < 0 or alpha > 90:
+        errors.append("Incline angle must be between 0 and 90 degrees")
+
+    return errors
+
+def calculate_drum_burden(drum_diameter, drum_fw, burden_target, rpm, material_volume, material_density, magnet_type, use_imperial=False):
+    """Calculate drum burden with unit conversion support."""
+    # Convert imperial inputs to metric if needed
+    if use_imperial:
+        drum_diameter = convert_to_metric(drum_diameter, 'length')  # inches to mm
+        drum_fw = convert_to_metric(drum_fw, 'length')             # inches to mm
+        material_volume = convert_to_metric(material_volume, 'mass')  # lb/hr to kg/hr
+        material_density = convert_bulk_density_to_metric(material_density)  # lb/ft³ to kg/m³
+
+    # Base calculations
+    calculated_capacity = material_volume / material_density  # m³/hr or ft³/hr
+    volume_per_calculation = (drum_diameter * drum_fw * rpm) / 10  # Simplified estimation formula
+    depth_of_burden = calculated_capacity / volume_per_calculation
+
+    # Magnet force calculation
+    mu_0 = 4 * math.pi * 10**-7  # Vacuum permeability (T·m/A)
+    A = 0.0025  # Assumed cross-sectional area in m² (50mm x 50mm)
+
+    if magnet_type.lower() == "ceramic 8":
+        B = 0.4  # Tesla (Typical Surface Field Strength for Ceramic 8)
+    elif magnet_type.lower() == "neo 42":
+        B = 1.3  # Tesla (Typical Surface Field Strength for Neodymium N42)
+    else:
+        B = 0.4  # Default to Ceramic 8 if invalid input
+
+    magnetic_force = (B**2 * A) / (2 * mu_0)  # Magnetic force calculation
+    depth_of_burden *= (1 + (magnetic_force / 10000))  # Adjust based on force effect
+
+    # Convert results back to imperial if needed
+    if use_imperial:
+        calculated_capacity = convert_to_imperial(calculated_capacity, 'volume')  # m³/hr to ft³/hr
+        volume_per_calculation = convert_to_imperial(volume_per_calculation, 'volume')  # m³/hr to ft³/hr
+
+    return {
+        'calculated_capacity': calculated_capacity,
+        'volume_per_calculation': volume_per_calculation,
+        'magnetic_force': magnetic_force,
+        'depth_of_burden': depth_of_burden
+    }
+
+def validate_drum_burden_inputs(drum_diameter, drum_fw, burden_target, rpm, material_volume, material_density, magnet_type, use_imperial=False):
+    """Validate drum burden calculator inputs."""
+    errors = []
+
+    # Validate dimensional inputs
+    if drum_diameter <= 0:
+        errors.append("Drum diameter must be greater than 0")
+    elif use_imperial and drum_diameter > 100:  # inches
+        errors.append("Drum diameter seems too high (>100 inches)")
+    elif not use_imperial and drum_diameter > 2540:  # mm
+        errors.append("Drum diameter seems too high (>2540 mm)")
+
+    if drum_fw <= 0:
+        errors.append("Drum face width must be greater than 0")
+    elif use_imperial and drum_fw > 200:  # inches
+        errors.append("Drum face width seems too high (>200 inches)")
+    elif not use_imperial and drum_fw > 5080:  # mm
+        errors.append("Drum face width seems too high (>5080 mm)")
+
+    if burden_target <= 0:
+        errors.append("Burden target must be greater than 0")
+
+    if rpm <= 0:
+        errors.append("RPM must be greater than 0")
+    elif rpm > 1000:
+        errors.append("RPM seems too high (>1000)")
+
+    if material_volume <= 0:
+        errors.append("Material volume must be greater than 0")
+
+    if material_density <= 0:
+        errors.append("Material density must be greater than 0")
+    elif use_imperial and material_density > 200:  # lb/ft³
+        errors.append("Material density seems too high (>200 lb/ft³)")
+    elif not use_imperial and material_density > 3203.7:  # kg/m³
+        errors.append("Material density seems too high (>3203.7 kg/m³)")
+
+    valid_magnet_types = ["ceramic 8", "neo 42"]
+    if magnet_type.lower() not in valid_magnet_types:
+        errors.append(f"Magnet type must be one of: {', '.join(valid_magnet_types)}")
+
+    return errors
