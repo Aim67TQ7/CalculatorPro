@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ['python311', 'pip']
+
+[phases.install]
+cmds = [
+  'pip install --no-cache-dir fastapi>=0.100.0',
+  'pip install --no-cache-dir uvicorn[standard]>=0.20.0', 
+  'pip install --no-cache-dir pydantic>=2.0.0',
+  'pip install --no-cache-dir plotly>=5.0.0',
+  'pip install --no-cache-dir pandas>=2.0.0',
+  'pip install --no-cache-dir numpy>=1.24.0'
+]
+
+[start]
+cmd = 'uvicorn main:app --host 0.0.0.0 --port $PORT'

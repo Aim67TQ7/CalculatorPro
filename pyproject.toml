@@ -1,22 +1,13 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "engineering-calculators-api"
 version = "1.0.0"
 description = "Comprehensive FastAPI backend for specialized engineering calculators"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi==0.115.12",
-    "uvicorn==0.34.3",
-    "pydantic==2.11.5",
-    "plotly==6.1.2",
-    "pandas==2.3.0",
-    "numpy==2.3.0"
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.20.0",
+    "pydantic>=2.0.0",
+    "plotly>=5.0.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0"
 ]
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["*"]
