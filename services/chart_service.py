@@ -1,5 +1,4 @@
-import base64
-from io import BytesIO
+import json
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -9,15 +8,10 @@ class ChartService:
         pio.templates.default = "plotly_white"
 
     def fig_to_base64(self, fig: go.Figure) -> str:
-        """Convert Plotly figure to base64 encoded string"""
+        """Convert Plotly figure to JSON string for frontend rendering"""
         try:
-            # Convert figure to PNG bytes
-            img_bytes = pio.to_image(fig, format="png", width=800, height=600)
-            
-            # Encode to base64
-            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-            
-            return f"data:image/png;base64,{img_base64}"
+            # Convert figure to JSON for frontend rendering
+            return fig.to_json()
         except Exception as e:
             # Return empty string if conversion fails
             return ""

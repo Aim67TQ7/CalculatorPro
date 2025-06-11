@@ -47,7 +47,7 @@ async def root():
         "documentation": "/docs"
     }
 
-@app.get("/calculators", response_model=CalculatorListResponse)
+@app.get("/calculators")
 async def get_calculators():
     """Get list of available calculators with their descriptions"""
     calculators = [
@@ -130,13 +130,13 @@ async def get_calculators():
             "category": "Separation Systems"
         }
     ]
-    return CalculatorListResponse(calculators=calculators)
+    return {"calculators": calculators}
 
-@app.get("/materials", response_model=MaterialListResponse)
+@app.get("/materials")
 async def get_materials():
     """Get list of available materials with their properties"""
     materials = material_service.get_all_materials()
-    return MaterialListResponse(materials=materials)
+    return {"materials": materials}
 
 # Gravity Flow Calculator Endpoints
 @app.post("/calculators/gravity-flow", response_model=GravityFlowResponse)
@@ -256,4 +256,4 @@ async def calculate_cyclone_separator(request: CycloneSeparatorRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
